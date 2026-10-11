@@ -1,7 +1,9 @@
-# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
 
-# dependencies
+# Dependencies
 /node_modules
+**/node_modules
+
+# Yarn / Plug'n'Play
 /.pnp
 .pnp.*
 .yarn/*
@@ -10,32 +12,76 @@
 !.yarn/releases
 !.yarn/versions
 
-# testing
+# Testing
 /coverage
+coverage.json
 
-# next.js
+# Next.js
 /.next/
 /out/
+next-env.d.ts
 
-# production
+# Production builds
 /build
+/dist
 
-# misc
-.DS_Store
-*.pem
+# Incognito private keys and local report storage
+/keys/moderator-private.pem
+**/keys/moderator-private.pem
+/data/
+/**/data/
 
-# debug
+# Environment files and secrets
+.env*
+!.env.example
+**/.env*
+!**/.env.example
+
+# Dependencies and generated blockchain files
+artifacts/
+cache/
+typechain/
+typechain-types/
+solidity-coverage/
+
+# Logs and debug files
+logs/
+*.log
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+lerna-debug.log*
 .pnpm-debug.log*
 
-# env files (can opt-in for committing if needed)
-.env*
+# Runtime data
+pids/
+*.pid
+*.seed
+*.pid.lock
 
-# vercel
-.vercel
+# npm cache and package archives
+.npm/
+*.tgz
 
-# typescript
+# IDE and editor files
+.vscode/
+.idea/
+
+# macOS
+.DS_Store
+
+# TypeScript
 *.tsbuildinfo
-next-env.d.ts
+
+# Microbundle cache
+.rpt2_cache/
+.rts2_cache_cjs/
+.rts2_cache_es/
+.rts2_cache_umd/
+
+# Vercel
+.vercel/
+
+# Diagnostic reports
+report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
+/private/

@@ -9,6 +9,9 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@semaphore-protocol/core": "^4.14.3",
+    "ethers": "^6.17.0",
+    "jose": "^6.2.12",
     "next": "16.4.0",
     "react": "19.3.0",
     "react-dom": "19.3.0"

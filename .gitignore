@@ -1,0 +1,49 @@
+# Environment files and secrets
+.env
+.env.*
+**/.env
+**/.env.*
+!.env.example
+!**/.env.example
+
+# Private keys and identity backups
+**/moderator-private.pem
+**/*-private.pem
+**/private/*.backup
+**/*identity*.backup
+**/secrets/
+**/private-keys/
+
+# Local report storage and runtime data
+**/data/
+*.log
+
+# Dependencies and build output
+**/node_modules/
+**/.next/
+**/out/
+**/dist/
+**/build/
+**/coverage/
+**/artifacts/
+**/cache/
+**/typechain/
+**/typechain-types/
+**/solidity-coverage/
+
+# Local tools and editor files
+.vercel/
+.DS_Store
+.vscode/
+.idea/
+*.tsbuildinfo
+
+# Local backups
+*.backup
+*.bak
+*.before-*
+
+# Temporary page backups
+**/*.backup.tsx
+**/*.before-chain-integration.bak
+**/*.before-worker-fix.bak
