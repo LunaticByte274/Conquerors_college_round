@@ -1,6 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { mkdir, writeFile } from "node:fs/promises";
-import path from "node:path";
+import { put } from "@vercel/blob";
 import { NextResponse } from "next/server";
 import type { EncryptedReport } from "@/lib/report-encryption";
 
@@ -10,16 +9,12 @@ function originIsAllowed(request: Request): boolean {
     const origin = request.headers.get("origin");
     const host = request.headers.get("host");
 
-    if (!origin || !host) {
-        return false;
-    }
+    if (!origin || !host) return false;
 
     try {
         const parsedOrigin = new URL(origin);
         const requestUrl = new URL(request.url);
 
-        // Require the browser origin to match the request's host
-        // and protocol. Reject malformed origins and "null" origins.
         return (
             parsedOrigin.origin === requestUrl.origin &&
             parsedOrigin.host === host
@@ -30,9 +25,7 @@ function originIsAllowed(request: Request): boolean {
 }
 
 function isEncryptedReport(value: unknown): value is EncryptedReport {
-    if (!value || typeof value !== "object") {
-        return false;
-    }
+    if (!value || typeof value !== "object") return false;
 
     const report = value as Record<string, unknown>;
 
@@ -51,18 +44,15 @@ function isEncryptedReport(value: unknown): value is EncryptedReport {
 }
 
 export async function POST(request: Request) {
-    // Reject cross-origin requests before reading their bodies.
+    const noStore = { "Cache-Control": "no-store" };
+
     if (!originIsAllowed(request)) {
         return NextResponse.json(
             { error: "Forbidden request origin." },
-            {
-                status: 403,
-                headers: { "Cache-Control": "no-store" },
-            }
+            { status: 403, headers: noStore }
         );
     }
 
-    // Reject oversized requests early when Content-Length is supplied.
     const contentLength = request.headers.get("content-length");
 
     if (contentLength !== null) {
@@ -71,14 +61,14 @@ export async function POST(request: Request) {
         if (!Number.isSafeInteger(size) || size < 0) {
             return NextResponse.json(
                 { error: "Invalid Content-Length header." },
-                { status: 400 }
+                { status: 400, headers: noStore }
             );
         }
 
         if (size > MAX_REQUEST_BYTES) {
             return NextResponse.json(
                 { error: "Request body is too large." },
-                { status: 413 }
+                { status: 413, headers: noStore }
             );
         }
     }
@@ -90,16 +80,14 @@ export async function POST(request: Request) {
     } catch {
         return NextResponse.json(
             { error: "Could not read request body." },
-            { status: 400 }
+            { status: 400, headers: noStore }
         );
     }
 
-    // Also check the actual body size, including when Content-Length
-    // is absent. This is a post-read check, not a streaming size limit.
     if (new TextEncoder().encode(body).byteLength > MAX_REQUEST_BYTES) {
         return NextResponse.json(
             { error: "Request body is too large." },
-            { status: 413 }
+            { status: 413, headers: noStore }
         );
     }
 
@@ -110,59 +98,40 @@ export async function POST(request: Request) {
     } catch {
         return NextResponse.json(
             { error: "Invalid JSON request." },
-            {
-                status: 400,
-                headers: { "Cache-Control": "no-store" },
-            }
+            { status: 400, headers: noStore }
         );
     }
 
     if (!isEncryptedReport(payload)) {
         return NextResponse.json(
             { error: "Invalid encrypted report payload." },
-            {
-                status: 400,
-                headers: { "Cache-Control": "no-store" },
-            }
+            { status: 400, headers: noStore }
         );
     }
 
     try {
         const reportId = randomUUID();
-        const storageDirectory = path.join(
-            process.cwd(),
-            "data",
-            "reports"
-        );
 
-        await mkdir(storageDirectory, {
-            recursive: true,
-            mode: 0o700,
-        });
-
-        await writeFile(
-            path.join(storageDirectory, `${reportId}.json`),
+        await put(
+            `reports/${reportId}.json`,
             JSON.stringify(payload),
             {
-                flag: "wx",
-                mode: 0o600,
+                access: "private",
+                contentType: "application/json",
+                addRandomSuffix: false,
             }
         );
 
         return NextResponse.json(
             { reportId, stored: true },
-            {
-                status: 201,
-                headers: { "Cache-Control": "no-store" },
-            }
+            { status: 201, headers: noStore }
         );
-    } catch {
+    } catch (error) {
+        console.error("Encrypted report storage failed:", error);
+
         return NextResponse.json(
             { error: "Could not store the encrypted report." },
-            {
-                status: 500,
-                headers: { "Cache-Control": "no-store" },
-            }
+            { status: 500, headers: noStore }
         );
     }
 }

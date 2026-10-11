@@ -1,10 +1,11 @@
-
-import { constants, privateDecrypt, createDecipheriv } from "node:crypto";
-import { readFile } from "node:fs/promises";
-import path from "node:path";
+import { get } from "@vercel/blob";
+import {
+    constants,
+    privateDecrypt,
+    createDecipheriv,
+} from "node:crypto";
 import { NextResponse } from "next/server";
 import { isModeratorAuthenticated } from "@/lib/moderator-auth";
-
 
 function decodeBase64(value: string): Buffer {
     if (
@@ -19,10 +20,12 @@ function decodeBase64(value: string): Buffer {
 }
 
 export async function POST(request: Request) {
+    const noStore = { "Cache-Control": "no-store" };
+
     if (!(await isModeratorAuthenticated())) {
         return NextResponse.json(
             { error: "Authentication required." },
-            { status: 401, headers: { "Cache-Control": "no-store" } }
+            { status: 401, headers: noStore }
         );
     }
 
@@ -33,7 +36,7 @@ export async function POST(request: Request) {
     } catch {
         return NextResponse.json(
             { error: "Invalid request." },
-            { status: 400 }
+            { status: 400, headers: noStore }
         );
     }
 
@@ -46,24 +49,30 @@ export async function POST(request: Request) {
     ) {
         return NextResponse.json(
             { error: "Invalid report ID." },
-            { status: 400 }
+            { status: 400, headers: noStore }
         );
     }
 
     try {
         const reportId = body.reportId;
-        const reportsDirectory = path.join(process.cwd(), "data", "reports");
-        const reportPath = path.join(reportsDirectory, `${reportId}.json`);
-        const privateKeyPath = path.join(
-            process.cwd(),
-            "keys",
-            "moderator-private.pem"
+
+        const stored = await get(
+            `reports/${reportId}.json`,
+            { access: "private" }
         );
 
-        const [rawReport, privateKey] = await Promise.all([
-            readFile(reportPath, "utf8"),
-            readFile(privateKeyPath, "utf8"),
-        ]);
+        if (!stored || stored.statusCode !== 200 || !stored.stream) {
+            return NextResponse.json(
+                { error: "Report not found." },
+                { status: 404, headers: noStore }
+            );
+        }
+
+        const rawReport = await new Response(stored.stream).text();
+
+        if (rawReport.length > 256 * 1024) {
+            throw new Error("Stored report exceeds size limit.");
+        }
 
         const encrypted = JSON.parse(rawReport) as {
             version?: unknown;
@@ -80,6 +89,14 @@ export async function POST(request: Request) {
         ) {
             throw new Error("Invalid report format.");
         }
+
+        const configuredKey = process.env.MODERATOR_PRIVATE_KEY;
+
+        if (!configuredKey) {
+            throw new Error("Moderator private key is not configured.");
+        }
+
+        const privateKey = configuredKey.replace(/\\n/g, "\n");
 
         const aesKey = privateDecrypt(
             {
@@ -131,13 +148,14 @@ export async function POST(request: Request) {
                 category: report.category,
                 body: report.body,
             },
-            { headers: { "Cache-Control": "no-store" } }
+            { headers: noStore }
         );
-    } catch {
+    } catch (error) {
+        console.error("Moderator report retrieval failed:", error);
+
         return NextResponse.json(
             { error: "Could not decrypt this report." },
-            { status: 422, headers: { "Cache-Control": "no-store" } }
+            { status: 422, headers: noStore }
         );
     }
 }
-
